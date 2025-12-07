@@ -1,0 +1,41 @@
+experiment_name: distill_student_v1
+seed: 99
+backend: accelerate
+
+model:
+  teacher_path: "checkpoints/dpo/latest"
+  student_model_name_or_path: "microsoft/phi-2"
+  max_seq_length: 2048
+  freeze_embeddings: false
+  lora:
+    enabled: false
+    r: 16
+    alpha: 32
+    dropout: 0.05
+
+data:
+  teacher_samples_path: "data/processed/teacher_rollouts.jsonl"
+  num_workers: 4
+
+optimization:
+  total_batch_size: 512
+  micro_batch_size: 4
+  learning_rate: 3.0e-5
+  warmup_steps: 300
+  weight_decay: 0.01
+  max_train_steps: 4000
+  label_smoothing: 0.0
+  temperature: 1.0
+
+logging:
+  output_dir: "checkpoints/distill"
+  log_dir: "logs/distill"
+  log_every_steps: 20
+  eval_every_steps: 200
+  save_every_steps: 400
+  use_wandb: true
+
+hardware:
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32
+  num_processes: 8

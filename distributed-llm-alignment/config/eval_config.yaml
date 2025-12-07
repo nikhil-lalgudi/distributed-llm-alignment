@@ -1,0 +1,27 @@
+seed: 2024
+models:
+  base: "mistralai/Mistral-7B-v0.1"
+  sft: "checkpoints/sft/latest"
+  dpo: "checkpoints/dpo/latest"
+  distill: "checkpoints/distill/latest"
+
+benchmarks:
+  alignment:
+    prompts_path: "data/processed/eval_prompts.jsonl"
+    max_samples: 512
+  safety:
+    prompts_path: "data/processed/safety_prompts.jsonl"
+    classifier_name: "lvwerra/toxicity-classifier"
+  truthfulness:
+    prompts_path: "data/processed/truthfulqa.jsonl"
+
+latency:
+  hardware: "A100-80GB"
+  batch_sizes: [1, 4, 8]
+  seq_lengths: [256, 512, 1024]
+  warmup_steps: 5
+  measure_steps: 20
+
+logging:
+  output_path: "logs/eval/results.json"
+  table_path: "logs/eval/summary.md"

@@ -1,0 +1,15 @@
+compute_environment: LOCAL_MACHINE
+device_placement: true
+distributed_type: MULTI_GPU
+fsdp_config: {}
+fork_mode: false
+machine_rank: 0
+main_process_ip: null
+main_process_port: 29500
+main_training_function: main
+mixed_precision: bf16
+num_machines: 1
+num_processes: 8
+rdzv_backend: static
+same_network: true
+use_cpu: false

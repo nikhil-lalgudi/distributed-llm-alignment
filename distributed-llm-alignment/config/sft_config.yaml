@@ -1,0 +1,38 @@
+experiment_name: sft_run_v1
+seed: 42
+backend: accelerate
+
+model:
+  model_name_or_path: "mistralai/Mistral-7B-v0.1"
+  max_seq_length: 2048
+  gradient_checkpointing: true
+  use_flash_attention: true
+
+data:
+  train_path: "data/processed/sft_train.jsonl"
+  eval_path: "data/processed/sft_eval.jsonl"
+  num_workers: 4
+  packing: true
+
+optimization:
+  total_batch_size: 512
+  micro_batch_size: 4
+  learning_rate: 2.0e-5
+  warmup_steps: 500
+  weight_decay: 0.01
+  max_train_steps: 5000
+  lr_scheduler: cosine
+
+logging:
+  output_dir: "checkpoints/sft"
+  log_dir: "logs/sft"
+  log_every_steps: 20
+  eval_every_steps: 200
+  save_every_steps: 500
+  use_wandb: true
+
+hardware:
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32
+  num_processes: 8
+  deepspeed_config: "config/deepspeed_zero3.json"

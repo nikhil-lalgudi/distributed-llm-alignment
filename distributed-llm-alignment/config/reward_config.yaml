@@ -1,0 +1,35 @@
+experiment_name: reward_model_v1
+seed: 123
+backend: accelerate
+
+model:
+  base_model_name_or_path: "mistralai/Mistral-7B-v0.1"
+  pooling: last_token
+  dropout: 0.1
+
+data:
+  train_path: "data/processed/reward_train.jsonl"
+  eval_path: "data/processed/reward_eval.jsonl"
+  num_workers: 4
+
+optimization:
+  total_batch_size: 256
+  micro_batch_size: 2
+  learning_rate: 5.0e-6
+  warmup_steps: 200
+  weight_decay: 0.0
+  max_train_steps: 3000
+  lr_scheduler: cosine
+
+logging:
+  output_dir: "checkpoints/reward"
+  log_dir: "logs/reward"
+  log_every_steps: 10
+  eval_every_steps: 100
+  save_every_steps: 250
+  use_wandb: true
+
+hardware:
+  mixed_precision: bf16
+  gradient_accumulation_steps: 64
+  num_processes: 4

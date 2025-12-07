@@ -1,0 +1,15 @@
+torch
+transformers
+datasets
+accelerate
+deepspeed
+sentencepiece
+bitsandbytes
+peft
+evaluate
+wandb
+tqdm
+pyyaml
+scipy
+numpy
+rich
