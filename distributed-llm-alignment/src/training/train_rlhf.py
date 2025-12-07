@@ -53,11 +53,21 @@ def main() -> None:
     model_cfg: Dict = config["model"]
     policy_bundle = load_causal_lm(model_cfg["policy_model_name_or_path"], gradient_checkpointing=True)
     ref_bundle = load_causal_lm(model_cfg["reference_model_name_or_path"], gradient_checkpointing=False)
+    reward_cfg = config.get("reward_model", {})
+    reward_base = reward_cfg.get("base_model_name_or_path", model_cfg["policy_model_name_or_path"])
     reward_model, reward_tokenizer = build_reward_model(
-        model_cfg["policy_model_name_or_path"],
+        reward_base,
         pooling="last_token",
         dropout=0.1,
     )
+    reward_checkpoint = reward_cfg.get("path")
+    if reward_checkpoint:
+        ckpt_file = Path(reward_checkpoint)
+        if ckpt_file.is_dir():
+            safetensor = ckpt_file / "pytorch_model.bin"
+            if safetensor.exists():
+                state_dict = torch.load(safetensor, map_location="cpu")
+                reward_model.load_state_dict(state_dict, strict=False)
 
     prompts = load_prompts(config["sampling"]["prompt_path"])
     generation_params = config["ppo"].get("generation_params", {"max_new_tokens": 256})

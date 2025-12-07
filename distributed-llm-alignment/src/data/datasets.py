@@ -211,9 +211,12 @@ def pad_batch(batch: List[Dict[str, torch.Tensor]], pad_token_id: int) -> Dict[s
 
     padded: Dict[str, torch.Tensor] = {}
     for key, tensors in collated.items():
+        pad_value = -100 if key == "labels" else 0
+        if key in {"input_ids", "attention_mask"}:
+            pad_value = pad_token_id if key == "input_ids" else 0
         padded[key] = torch.nn.utils.rnn.pad_sequence(
             tensors,
             batch_first=True,
-            padding_value=pad_token_id if key == "input_ids" or key == "labels" else 0,
+            padding_value=pad_value,
         )
     return padded

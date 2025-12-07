@@ -45,6 +45,52 @@ distributed-llm-alignment/
 5. **Evaluation**: Compare models on alignment/safety metrics and latency using `src/eval/eval_alignment.py` and `src/eval/eval_latency.py`.
 6. **Packaging**: Collect metrics, plots, and qualitative samples for reports/portfolio.
 
+## Phase-by-Phase Commands
+```bash
+# Phase 1: Supervised Fine-Tuning
+bash scripts/launch_sft.sh config/sft_config.yaml
+
+# Phase 2: Reward Modeling
+bash scripts/launch_reward.sh config/reward_config.yaml
+
+# Phase 3a: DPO Alignment
+bash scripts/launch_dpo.sh config/dpo_config.yaml
+
+# Phase 3b (optional): PPO RLHF Loop
+bash scripts/launch_rlhf.sh config/rlhf_config.yaml
+
+# Phase 4: Teacher Rollouts + Distillation
+python -m src.training.generate_teacher_data --teacher checkpoints/dpo/latest --prompts data/processed/sft_eval.jsonl --output data/processed/teacher_rollouts.jsonl
+bash scripts/launch_distill.sh config/distill_config.yaml
+
+# Phase 5: Evaluation
+bash scripts/launch_eval.sh config/eval_config.yaml
+```
+
+## Data Preparation
+- **Raw data ingestion**: drop any third-party datasets into `data/raw/`. Use ad-hoc scripts or notebooks to normalize into the JSONL formats listed below and store under `data/processed/`.
+- **Tokenization sanity**: run a quick `python -m src.training.generate_teacher_data ... --max_new_tokens 1` to ensure tokenizers agree on prompt formats before kicking off long runs.
+- **Sharding for scale**: the dataset helpers in `src/data/datasets.py` operate on JSONL files; for very large corpora, pre-shard into multiple files and concatenate via symlinks or `datasets` streaming.
+
+## Standard JSONL Schemas
+| Stage | Required Keys |
+| --- | --- |
+| SFT | `{"prompt": str, "response": str}` |
+| Reward/DPO | `{"prompt": str, "chosen": str, "rejected": str}` |
+| RLHF prompts | `{"prompt": str}` |
+| Teacher rollouts | `{"prompt": str, "teacher_response": str, "reward": float}` |
+
+## Evaluation Artifacts
+- `logs/eval/results.json`: aggregate alignment metrics for every model × benchmark pair.
+- `logs/eval/summary.md`: Markdown table ready for reports or README excerpts.
+- `logs/eval/latency.json`: throughput + latency comparisons for the same checkpoints (produced by `eval_latency.py`).
+- To splice samples into blog posts, run `python -m src.training.generate_teacher_data ... --max_new_tokens 128` against each checkpoint and collate the JSONL outputs.
+
+## Troubleshooting Checklist
+- Validate cluster visibility via `accelerate env` before launches.
+- Double-check `config/*` paths whenever moving checkpoints between machines.
+- If you change the tokenizer or base model mid-project, regenerate processed datasets to avoid EOS/id mismatches.
+
 ## Data Expectations
 - **Instruction SFT**: JSONL entries with `{"prompt": str, "response": str}`.
 - **Preference Data**: JSONL entries with `{"prompt": str, "chosen": str, "rejected": str}`.
