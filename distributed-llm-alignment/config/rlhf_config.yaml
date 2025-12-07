@@ -1,0 +1,29 @@
+experiment_name: rlhf_ppo_v1
+seed: 21
+
+model:
+  policy_model_name_or_path: "checkpoints/sft/latest"
+  reference_model_name_or_path: "checkpoints/sft/latest"
+  max_seq_length: 1024
+
+reward_model:
+  path: "checkpoints/reward/latest"
+
+ppo:
+  batch_size: 64
+  mini_batch_size: 8
+  learning_rate: 1.0e-6
+  kl_coef: 0.1
+  target_kl: 6.0
+  steps: 1024
+  generation_params:
+    max_new_tokens: 256
+    temperature: 0.7
+    top_p: 0.9
+
+sampling:
+  prompt_path: "data/processed/rlhf_prompts.jsonl"
+
+logging:
+  output_dir: "checkpoints/rlhf"
+  log_dir: "logs/rlhf"

@@ -13,3 +13,4 @@ pyyaml
 scipy
 numpy
 rich
+trl
