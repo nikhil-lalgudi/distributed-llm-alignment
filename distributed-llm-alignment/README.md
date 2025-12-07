@@ -118,12 +118,6 @@ Use them by swapping the `data:` block in your phase config (e.g., `config/sft_a
 - Plug in new evaluation benchmarks by adding loaders to `src/eval/eval_alignment.py`.
 - Add ablations by composing additional Hydra/OMEGACONF config fragments (if desired).
 
-## Status Checklist
-- [x] Project skeleton and documentation
-- [x] Configuration templates and launch scripts
-- [x] Modular data/model/training code paths
-- [ ] Integrate real datasets + run training (user action)
-
 ## References
 - DPO: Rafailov et al. 2023
 - RLHF: Ouyang et al. 2022

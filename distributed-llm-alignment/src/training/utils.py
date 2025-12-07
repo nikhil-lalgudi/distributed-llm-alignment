@@ -10,9 +10,8 @@ from typing import Any, Dict, Iterable, Optional
 import numpy as np
 import torch
 import yaml
-from accelerate import Accelerator
+from accelerate import Accelerator, DeepSpeedPlugin, FullyShardedDataParallelPlugin
 from accelerate.utils import DistributedDataParallelKwargs
-from accelerate import DeepSpeedPlugin
 
 
 
@@ -57,9 +56,13 @@ def get_accelerator(config: Dict[str, Any]) -> Accelerator:
     """Instantiate Accelerator using common keys from config."""
     hw = config.get("hardware", {})
     deepspeed_cfg = hw.get("deepspeed_config")
+    fsdp_cfg = hw.get("fsdp")
     ds_plugin: Optional[DeepSpeedPlugin] = None
+    fsdp_plugin: Optional[FullyShardedDataParallelPlugin] = None
     if deepspeed_cfg:
         ds_plugin = DeepSpeedPlugin(hf_ds_config=deepspeed_cfg)
+    if fsdp_cfg:
+        fsdp_plugin = FullyShardedDataParallelPlugin(**fsdp_cfg)
     ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     return Accelerator(
         gradient_accumulation_steps=hw.get("gradient_accumulation_steps", 1),
@@ -67,6 +70,7 @@ def get_accelerator(config: Dict[str, Any]) -> Accelerator:
         log_with="wandb" if config.get("logging", {}).get("use_wandb") else None,
         project_dir=config.get("logging", {}).get("log_dir"),
         deepspeed_plugin=ds_plugin,
+        fsdp_plugin=fsdp_plugin,
         kwargs_handlers=[ddp_kwargs],
     )
 
