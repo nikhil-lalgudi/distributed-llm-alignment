@@ -1,0 +1,10 @@
+# Example FSDP hardware block to swap into configs
+hardware:
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32
+  num_processes: 8
+  fsdp:
+    sharding_strategy: 1  # FULL_SHARD
+    offload_params: false
+    auto_wrap_policy: size
+    min_num_params: 1000000

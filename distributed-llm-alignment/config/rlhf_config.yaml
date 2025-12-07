@@ -22,7 +22,11 @@ ppo:
     top_p: 0.9
 
 sampling:
-  prompt_path: "data/processed/rlhf_prompts.jsonl"
+  source: hf
+  hf_path: "Anthropic/hh-rlhf"
+  split: "train"
+  prompt_key: "prompt"
+  prompt_path: "data/processed/rlhf_prompts.jsonl"  # fallback local
 
 logging:
   output_dir: "checkpoints/rlhf"

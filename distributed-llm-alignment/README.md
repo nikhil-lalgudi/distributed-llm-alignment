@@ -104,6 +104,32 @@ Use them by swapping the `data:` block in your phase config (e.g., `config/sft_a
 - If you change the tokenizer or base model mid-project, regenerate processed datasets to avoid EOS/id mismatches.
 - For large models, prefer `hardware.deepspeed_config` (Zero-3 provided) and set `mixed_precision: bf16` on A100/H100. Tune `gradient_accumulation_steps` so `micro_batch_size * world_size * grad_accum = total_batch_size`.
 
+## Backends
+- **DeepSpeed Zero-3**: enabled by setting `hardware.deepspeed_config: config/deepspeed_zero3.json` (already in defaults).
+- **FSDP**: set `hardware.fsdp` in configs, e.g.:
+   ```yaml
+   hardware:
+      mixed_precision: bf16
+      gradient_accumulation_steps: 32
+      fsdp:
+         sharding_strategy: 1   # FULL_SHARD
+         offload_params: false
+         auto_wrap_policy: size
+         min_num_params: 1_000_000
+   ```
+
+## Ablation Fragments (drop-in YAML overlays)
+- `config/ablations/low_lr.yaml`: smaller LR + longer warmup.
+- `config/ablations/high_beta_dpo.yaml`: sharper DPO beta.
+- `config/ablations/clip_grad_0_5.yaml`: tighter gradient clipping.
+Apply by merging keys into your base config (or via Hydra-style overlays if you adopt Hydra/OmegaConf).
+
+## Dataset Presets
+- SFT: `config/data_sources/sft_alpaca.yaml`, `config/data_sources/sft_ultrachat.yaml`.
+- Preference: `config/data_sources/pref_hh_rlhf.yaml`, `config/data_sources/pref_shp.yaml`.
+- RLHF prompts: `config/data_sources/rlhf_prompts_hh.yaml`.
+Swap the `data:` or `sampling:` blocks in your configs with these presets to train on real HF datasets without manual preprocessing.
+
 ## Data Expectations
 - **Instruction SFT**: JSONL entries with `{"prompt": str, "response": str}`.
 - **Preference Data**: JSONL entries with `{"prompt": str, "chosen": str, "rejected": str}`.

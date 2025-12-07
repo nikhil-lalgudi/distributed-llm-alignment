@@ -1,0 +1,6 @@
+# Prompts sampled from Anthropic HH-RLHF for PPO sampling
+source: hf
+hf_path: "Anthropic/hh-rlhf"
+split: "train"
+prompt_key: "prompt"
+limit: 20000

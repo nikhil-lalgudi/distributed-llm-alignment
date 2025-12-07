@@ -1,0 +1,4 @@
+# Apply lower LR for stability
+optimization:
+  learning_rate: 5.0e-6
+  warmup_steps: 1000

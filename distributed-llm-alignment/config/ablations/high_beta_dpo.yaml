@@ -1,0 +1,5 @@
+# Increase beta for sharper DPO separation
+model:
+  beta: 0.2
+optimization:
+  learning_rate: 7.5e-7

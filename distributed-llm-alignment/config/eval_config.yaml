@@ -6,14 +6,20 @@ models:
   distill: "checkpoints/distill/latest"
 
 benchmarks:
-  alignment:
+  alignment_local:
+    type: local
     prompts_path: "data/processed/eval_prompts.jsonl"
     max_samples: 512
-  safety:
-    prompts_path: "data/processed/safety_prompts.jsonl"
-    classifier_name: "lvwerra/toxicity-classifier"
+  safety_hh:
+    type: hf
+    hf_path: "Anthropic/hh-rlhf"
+    split: "train"
+    prompt_key: "prompt"
+    max_samples: 512
   truthfulness:
+    type: local
     prompts_path: "data/processed/truthfulqa.jsonl"
+    max_samples: 256
 
 latency:
   hardware: "A100-80GB"
@@ -21,6 +27,12 @@ latency:
   seq_lengths: [256, 512, 1024]
   warmup_steps: 5
   measure_steps: 20
+
+generation:
+  max_new_tokens: 256
+  temperature: 0.7
+  top_p: 0.9
+  do_sample: true
 
 logging:
   output_path: "logs/eval/results.json"

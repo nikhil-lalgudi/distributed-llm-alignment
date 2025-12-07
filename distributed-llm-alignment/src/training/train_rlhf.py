@@ -9,6 +9,8 @@ from typing import Dict, List
 import torch
 from torch.utils.data import DataLoader
 
+from datasets import load_dataset
+
 from src.data.datasets import read_jsonl
 from src.models.base_model import load_causal_lm
 from src.models.reward_model import build_reward_model
@@ -29,9 +31,20 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_prompts(path: str | Path) -> List[str]:
+def load_prompts(cfg: Dict[str, str]) -> List[str]:
+    source = cfg.get("source", "local")
+    if source == "hf":
+        ds = load_dataset(
+            cfg["hf_path"],
+            cfg.get("hf_name"),
+            split=cfg.get("split", "train"),
+            streaming=False,
+        )
+        prompt_key = cfg.get("prompt_key", "prompt")
+        return [row[prompt_key] for row in ds if row.get(prompt_key)]
+    path = cfg.get("prompt_path") or cfg.get("path")
     samples = read_jsonl(path)
-    return [record["prompt"] for record in samples]
+    return [record["prompt"] for record in samples if record.get("prompt")]
 
 
 def sequence_logprob(model, input_ids, attention_mask) -> torch.Tensor:
@@ -70,7 +83,7 @@ def main() -> None:
                 state_dict = torch.load(safetensor, map_location="cpu")
                 reward_model.load_state_dict(state_dict, strict=False)
 
-    prompts = load_prompts(config["sampling"]["prompt_path"])
+    prompts = load_prompts(config["sampling"])
     generation_params = config["ppo"].get("generation_params", {"max_new_tokens": 256})
 
     policy_model = policy_bundle.model
