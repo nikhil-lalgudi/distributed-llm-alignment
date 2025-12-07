@@ -1,0 +1,12 @@
+# Alpaca-style instruction tuning (HF: yahma/alpaca-cleaned)
+source: hf
+hf_path: "yahma/alpaca-cleaned"
+split: "train"
+columns:
+  prompt: "instruction"
+  response: "output"
+template: "Instruction: {instruction}\n\nInput: {input}\n\nResponse:"
+limit: null
+max_seq_length: 2048
+mask_prompt: true
+num_workers: 8

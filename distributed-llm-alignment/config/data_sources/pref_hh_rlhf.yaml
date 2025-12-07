@@ -1,0 +1,11 @@
+# Anthropic HH-RLHF preference pairs
+source: hf
+hf_path: "Anthropic/hh-rlhf"
+split: "train"
+columns:
+  prompt: "prompt"
+  chosen: "chosen"
+  rejected: "rejected"
+limit: null
+max_seq_length: 1024
+num_workers: 8

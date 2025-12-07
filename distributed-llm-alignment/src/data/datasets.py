@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import torch
+from datasets import load_dataset
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 
@@ -31,12 +32,15 @@ class InstructionDataset(Dataset):
 
     def __init__(
         self,
-        path: str | Path,
         tokenizer: PreTrainedTokenizerBase,
         max_length: int,
         mask_prompt: bool = True,
+        path: str | Path | None = None,
+        records: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        self.records = read_jsonl(path)
+        if records is None and path is None:
+            raise ValueError("Provide either records or path for InstructionDataset")
+        self.records = records if records is not None else read_jsonl(path)
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.mask_prompt = mask_prompt
@@ -84,11 +88,14 @@ class PreferenceDataset(Dataset):
 
     def __init__(
         self,
-        path: str | Path,
         tokenizer: PreTrainedTokenizerBase,
         max_length: int,
+        path: str | Path | None = None,
+        records: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        self.records = read_jsonl(path)
+        if records is None and path is None:
+            raise ValueError("Provide either records or path for PreferenceDataset")
+        self.records = records if records is not None else read_jsonl(path)
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.eos = tokenizer.eos_token or tokenizer.pad_token or "</s>"
@@ -220,3 +227,95 @@ def pad_batch(batch: List[Dict[str, torch.Tensor]], pad_token_id: int) -> Dict[s
             padding_value=pad_value,
         )
     return padded
+
+
+def _apply_template(template: Optional[str], record: Dict[str, Any]) -> str:
+    if not template:
+        return record
+    return template.format(**record)
+
+
+def load_instruction_records(cfg: Dict[str, Any], split: str = "train") -> List[Dict[str, Any]]:
+    source = cfg.get("source", "local")
+    limit = cfg.get("limit")
+    records: List[Dict[str, Any]]
+    if source == "hf":
+        split_name = cfg.get(f"{split}_split") or cfg.get("split", split)
+        ds = load_dataset(
+            cfg["hf_path"],
+            cfg.get("hf_name"),
+            split=split_name,
+            streaming=False,
+        )
+        cols = cfg.get("columns", {})
+        prompt_key = cols.get("prompt", "prompt")
+        response_key = cols.get("response", "response")
+        template = cfg.get("template")
+        records = []
+        for row in ds:
+            prompt_val = row[prompt_key]
+            response_val = row[response_key]
+            if template:
+                prompt_val = template.format(**row)
+            records.append({"prompt": prompt_val, "response": response_val})
+    else:
+        path = cfg.get(f"{split}_path") or cfg.get("path")
+        records = read_jsonl(path)
+    if limit:
+        records = records[: int(limit)]
+    return records
+
+
+def load_preference_records(cfg: Dict[str, Any], split: str = "train") -> List[Dict[str, Any]]:
+    source = cfg.get("source", "local")
+    limit = cfg.get("limit")
+    if source == "hf":
+        split_name = cfg.get(f"{split}_split") or cfg.get("split", split)
+        ds = load_dataset(
+            cfg["hf_path"],
+            cfg.get("hf_name"),
+            split=split_name,
+            streaming=False,
+        )
+        cols = cfg.get("columns", {})
+        prompt_key = cols.get("prompt", "prompt")
+        chosen_key = cols.get("chosen", "chosen")
+        rejected_key = cols.get("rejected", "rejected")
+        template = cfg.get("template")
+        records = []
+        for row in ds:
+            prompt_val = row[prompt_key]
+            if template:
+                prompt_val = template.format(**row)
+            records.append(
+                {
+                    "prompt": prompt_val,
+                    "chosen": row[chosen_key],
+                    "rejected": row[rejected_key],
+                }
+            )
+    else:
+        path = cfg.get(f"{split}_path") or cfg.get("path") or cfg.get("preference_path")
+        records = read_jsonl(path)
+    if limit:
+        records = records[: int(limit)]
+    return records
+
+
+def build_instruction_dataset(cfg: Dict[str, Any], tokenizer: PreTrainedTokenizerBase, split: str = "train") -> InstructionDataset:
+    records = load_instruction_records(cfg, split=split)
+    return InstructionDataset(
+        tokenizer=tokenizer,
+        max_length=cfg.get("max_length", cfg.get("max_seq_length", 2048)),
+        mask_prompt=cfg.get("mask_prompt", True),
+        records=records,
+    )
+
+
+def build_preference_dataset(cfg: Dict[str, Any], tokenizer: PreTrainedTokenizerBase, split: str = "train") -> PreferenceDataset:
+    records = load_preference_records(cfg, split=split)
+    return PreferenceDataset(
+        tokenizer=tokenizer,
+        max_length=cfg.get("max_length", cfg.get("max_seq_length", 1024)),
+        records=records,
+    )

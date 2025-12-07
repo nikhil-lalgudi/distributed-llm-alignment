@@ -49,12 +49,15 @@ distributed-llm-alignment/
 ```bash
 # Phase 1: Supervised Fine-Tuning
 bash scripts/launch_sft.sh config/sft_config.yaml
+# or use presets: config/sft_alpaca.yaml, config/sft_ultrachat.yaml
 
 # Phase 2: Reward Modeling
 bash scripts/launch_reward.sh config/reward_config.yaml
+# or use HF preset: config/reward_hh.yaml
 
 # Phase 3a: DPO Alignment
 bash scripts/launch_dpo.sh config/dpo_config.yaml
+# or HF preset: config/dpo_hh.yaml
 
 # Phase 3b (optional): PPO RLHF Loop
 bash scripts/launch_rlhf.sh config/rlhf_config.yaml
@@ -71,6 +74,15 @@ bash scripts/launch_eval.sh config/eval_config.yaml
 - **Raw data ingestion**: drop any third-party datasets into `data/raw/`. Use ad-hoc scripts or notebooks to normalize into the JSONL formats listed below and store under `data/processed/`.
 - **Tokenization sanity**: run a quick `python -m src.training.generate_teacher_data ... --max_new_tokens 1` to ensure tokenizers agree on prompt formats before kicking off long runs.
 - **Sharding for scale**: the dataset helpers in `src/data/datasets.py` operate on JSONL files; for very large corpora, pre-shard into multiple files and concatenate via symlinks or `datasets` streaming.
+
+### Data Source Presets
+Ready-made YAML presets live in `config/data_sources/`:
+- `sft_alpaca.yaml` (HF: `yahma/alpaca-cleaned`)
+- `sft_ultrachat.yaml` (HF: `HuggingFaceH4/ultrachat_200k`)
+- `pref_hh_rlhf.yaml` (HF: `Anthropic/hh-rlhf`)
+- `pref_shp.yaml` (HF: `stanfordnlp/SHP`)
+
+Use them by swapping the `data:` block in your phase config (e.g., `config/sft_alpaca.yaml`, `config/reward_hh.yaml`, `config/dpo_hh.yaml`). Each preset supports `limit` to cap records and `eval_split` for validation.
 
 ## Standard JSONL Schemas
 | Stage | Required Keys |
@@ -90,6 +102,7 @@ bash scripts/launch_eval.sh config/eval_config.yaml
 - Validate cluster visibility via `accelerate env` before launches.
 - Double-check `config/*` paths whenever moving checkpoints between machines.
 - If you change the tokenizer or base model mid-project, regenerate processed datasets to avoid EOS/id mismatches.
+- For large models, prefer `hardware.deepspeed_config` (Zero-3 provided) and set `mixed_precision: bf16` on A100/H100. Tune `gradient_accumulation_steps` so `micro_batch_size * world_size * grad_accum = total_batch_size`.
 
 ## Data Expectations
 - **Instruction SFT**: JSONL entries with `{"prompt": str, "response": str}`.

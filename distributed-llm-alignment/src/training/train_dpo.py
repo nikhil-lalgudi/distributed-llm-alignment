@@ -7,13 +7,15 @@ from typing import Dict
 import torch
 from torch.utils.data import DataLoader
 
-from src.data.datasets import PreferenceDataset
+from src.data.datasets import build_preference_dataset
 from src.models.base_model import load_causal_lm
 from src.training.utils import (
     RunningLoss,
     get_accelerator,
     load_config,
     log_rank_zero,
+    get_distributed_sampler,
+    maybe_clip_gradients,
     prepare_output_dirs,
     save_accelerator_state,
     seed_everything,
@@ -55,16 +57,17 @@ def main() -> None:
     for param in ref_bundle.model.parameters():
         param.requires_grad = False
 
-    dataset = PreferenceDataset(
-        config["data"]["preference_path"],
-        policy_bundle.tokenizer,
-        max_length=model_cfg.get("max_seq_length", 1024),
-    )
+    data_cfg = config["data"] | {"preference_path": config["data"].get("preference_path")}
+    dataset = build_preference_dataset(data_cfg | {"max_seq_length": model_cfg.get("max_seq_length", 1024)}, policy_bundle.tokenizer, split="train")
+    train_sampler = get_distributed_sampler(dataset, accelerator, shuffle=True)
     dataloader = DataLoader(
         dataset,
         batch_size=config["optimization"]["micro_batch_size"],
-        shuffle=True,
+        sampler=train_sampler,
+        shuffle=train_sampler is None,
         collate_fn=dataset.collate,
+        num_workers=data_cfg.get("num_workers", 4),
+        pin_memory=True,
     )
 
     optimizer = torch.optim.AdamW(
@@ -89,7 +92,10 @@ def main() -> None:
     running = RunningLoss()
     global_step = 0
 
+    max_grad_norm = config["optimization"].get("max_grad_norm", 1.0)
     for epoch in range(10_000):
+        if train_sampler:
+            train_sampler.set_epoch(epoch)
         for batch in dataloader:
             with accelerator.accumulate(policy_bundle.model):
                 chosen = batch["chosen"]
@@ -100,6 +106,7 @@ def main() -> None:
                 ref_neg = compute_logprobs(ref_model, rejected["input_ids"], rejected["attention_mask"])
                 loss = dpo_loss(pol_pos, pol_neg, ref_pos, ref_neg, beta)
                 accelerator.backward(loss)
+                maybe_clip_gradients(accelerator, policy_bundle.model, max_grad_norm)
                 optimizer.step()
                 optimizer.zero_grad()
 

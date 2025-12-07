@@ -14,6 +14,8 @@ from src.training.utils import (
     get_accelerator,
     load_config,
     log_rank_zero,
+    get_distributed_sampler,
+    maybe_clip_gradients,
     prepare_output_dirs,
     save_accelerator_state,
     seed_everything,
@@ -43,11 +45,15 @@ def main() -> None:
         student_bundle.tokenizer,
         max_length=model_cfg.get("max_seq_length", 2048),
     )
+    train_sampler = get_distributed_sampler(dataset, accelerator, shuffle=True)
     dataloader = DataLoader(
         dataset,
         batch_size=config["optimization"]["micro_batch_size"],
-        shuffle=True,
+        sampler=train_sampler,
+        shuffle=train_sampler is None,
         collate_fn=dataset.collate,
+        num_workers=config["data"].get("num_workers", 4),
+        pin_memory=True,
     )
 
     optimizer = torch.optim.AdamW(
@@ -70,13 +76,17 @@ def main() -> None:
     running = RunningLoss()
     global_step = 0
 
+    max_grad_norm = config["optimization"].get("max_grad_norm", 1.0)
     for epoch in range(10_000):
+        if train_sampler:
+            train_sampler.set_epoch(epoch)
         for batch in dataloader:
             reward_values = batch.pop("reward")
             with accelerator.accumulate(student_bundle.model):
                 outputs = student_bundle.model(**batch)
                 loss = outputs.loss
                 accelerator.backward(loss)
+                maybe_clip_gradients(accelerator, student_bundle.model, max_grad_norm)
                 optimizer.step()
                 optimizer.zero_grad()
 

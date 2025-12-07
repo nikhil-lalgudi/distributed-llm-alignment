@@ -17,6 +17,7 @@ from src.training.utils import (
     get_accelerator,
     load_config,
     log_rank_zero,
+    maybe_clip_gradients,
     prepare_output_dirs,
     seed_everything,
 )
@@ -93,9 +94,11 @@ def main() -> None:
     batch_size = config["ppo"].get("batch_size", 64)
     kl_coef = config["ppo"].get("kl_coef", 0.1)
     running_loss = RunningLoss()
+    max_grad_norm = config.get("ppo", {}).get("max_grad_norm", 1.0)
 
     for step in range(steps):
         batch_prompts = random.sample(prompts, k=min(batch_size, len(prompts)))
+        batch_prompts = accelerator.split_between_processes(batch_prompts)
         tokenized = policy_bundle.tokenizer(
             batch_prompts,
             return_tensors="pt",
@@ -136,6 +139,7 @@ def main() -> None:
 
         loss = -(advantages.detach() * policy_logp).mean()
         accelerator.backward(loss)
+        maybe_clip_gradients(accelerator, policy_model, max_grad_norm)
         optimizer.step()
         optimizer.zero_grad()
 

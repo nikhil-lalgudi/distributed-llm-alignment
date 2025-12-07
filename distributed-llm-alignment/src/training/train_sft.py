@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import math
 from pathlib import Path
 from typing import Dict
 
@@ -10,13 +9,15 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import get_scheduler
 
-from src.data.datasets import InstructionDataset
+from src.data.datasets import build_instruction_dataset
 from src.models.base_model import count_trainable_params, load_causal_lm
 from src.training.utils import (
     RunningLoss,
     get_accelerator,
     load_config,
     log_rank_zero,
+    get_distributed_sampler,
+    maybe_clip_gradients,
     prepare_output_dirs,
     save_accelerator_state,
     seed_everything,
@@ -55,32 +56,33 @@ def main() -> None:
         use_flash_attention=model_cfg.get("use_flash_attention", False),
     )
 
-    train_dataset = InstructionDataset(
-        config["data"]["train_path"],
-        tokenizer=bundle.tokenizer,
-        max_length=model_cfg.get("max_seq_length", 2048),
-        mask_prompt=True,
-    )
+    data_cfg = config["data"]
+    train_dataset = build_instruction_dataset(data_cfg | {"max_seq_length": model_cfg.get("max_seq_length", 2048)}, bundle.tokenizer, split="train")
+    train_sampler = get_distributed_sampler(train_dataset, accelerator, shuffle=True)
     train_loader = DataLoader(
         train_dataset,
         batch_size=config["optimization"]["micro_batch_size"],
-        shuffle=True,
+        sampler=train_sampler,
+        shuffle=train_sampler is None,
         collate_fn=train_dataset.collate,
+        num_workers=data_cfg.get("num_workers", 4),
+        pin_memory=True,
+        drop_last=False,
     )
 
     eval_loader = None
-    if config["data"].get("eval_path"):
-        eval_dataset = InstructionDataset(
-            config["data"]["eval_path"],
-            tokenizer=bundle.tokenizer,
-            max_length=model_cfg.get("max_seq_length", 2048),
-            mask_prompt=True,
-        )
+    if data_cfg.get("eval_path") or data_cfg.get("eval_split"):
+        eval_dataset = build_instruction_dataset(data_cfg | {"max_seq_length": model_cfg.get("max_seq_length", 2048)}, bundle.tokenizer, split="eval")
+        eval_sampler = get_distributed_sampler(eval_dataset, accelerator, shuffle=False)
         eval_loader = DataLoader(
             eval_dataset,
             batch_size=config["optimization"]["micro_batch_size"],
+            sampler=eval_sampler,
             shuffle=False,
             collate_fn=eval_dataset.collate,
+            num_workers=data_cfg.get("num_workers", 4),
+            pin_memory=True,
+            drop_last=False,
         )
 
     model = bundle.model
@@ -124,12 +126,16 @@ def main() -> None:
     running_loss = RunningLoss()
     global_step = 0
 
+    max_grad_norm = config["optimization"].get("max_grad_norm", 1.0)
     for epoch in range(10_000):
+        if train_sampler:
+            train_sampler.set_epoch(epoch)
         for batch in train_loader:
             with accelerator.accumulate(model):
                 outputs = model(**batch)
                 loss = outputs.loss
                 accelerator.backward(loss)
+                maybe_clip_gradients(accelerator, model, max_grad_norm)
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()

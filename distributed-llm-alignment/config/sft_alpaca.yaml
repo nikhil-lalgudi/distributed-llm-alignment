@@ -1,4 +1,4 @@
-experiment_name: sft_run_v1
+experiment_name: sft_alpaca_hf
 seed: 42
 backend: accelerate
 
@@ -9,11 +9,16 @@ model:
   use_flash_attention: true
 
 data:
-  source: local
-  train_path: "data/processed/sft_train.jsonl"
-  eval_path: "data/processed/sft_eval.jsonl"
-  num_workers: 4
-  packing: true
+  # pulled from config/data_sources/sft_alpaca.yaml
+  source: hf
+  hf_path: "yahma/alpaca-cleaned"
+  split: "train"
+  columns:
+    prompt: "instruction"
+    response: "output"
+  template: "Instruction: {instruction}\n\nInput: {input}\n\nResponse:"
+  num_workers: 8
+  limit: null
 
 optimization:
   total_batch_size: 512
@@ -26,8 +31,8 @@ optimization:
   max_grad_norm: 1.0
 
 logging:
-  output_dir: "checkpoints/sft"
-  log_dir: "logs/sft"
+  output_dir: "checkpoints/sft_alpaca"
+  log_dir: "logs/sft_alpaca"
   log_every_steps: 20
   eval_every_steps: 200
   save_every_steps: 500

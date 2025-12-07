@@ -1,0 +1,12 @@
+# Stanford SHP (summarization preference) pairs
+source: hf
+hf_path: "stanfordnlp/SHP"
+split: "train"
+columns:
+  prompt: "history"
+  chosen: "human_ref_A"
+  rejected: "human_ref_B"
+template: "Summarize the following conversation:\n{history}\n\nSummary:"
+limit: null
+max_seq_length: 1024
+num_workers: 8

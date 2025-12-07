@@ -1,0 +1,13 @@
+# UltraChat 200k single-turn prompts (HF: HuggingFaceH4/ultrachat_200k)
+source: hf
+hf_path: "HuggingFaceH4/ultrachat_200k"
+hf_name: null
+split: "train"
+eval_split: "validation"
+columns:
+  prompt: "prompt"
+  response: "response"
+limit: null
+max_seq_length: 2048
+mask_prompt: true
+num_workers: 8

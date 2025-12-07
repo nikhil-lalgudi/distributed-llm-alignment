@@ -1,5 +1,5 @@
-experiment_name: sft_run_v1
-seed: 42
+experiment_name: sft_ultrachat_hf
+seed: 43
 backend: accelerate
 
 model:
@@ -9,11 +9,15 @@ model:
   use_flash_attention: true
 
 data:
-  source: local
-  train_path: "data/processed/sft_train.jsonl"
-  eval_path: "data/processed/sft_eval.jsonl"
-  num_workers: 4
-  packing: true
+  source: hf
+  hf_path: "HuggingFaceH4/ultrachat_200k"
+  split: "train"
+  eval_split: "validation"
+  columns:
+    prompt: "prompt"
+    response: "response"
+  num_workers: 8
+  limit: null
 
 optimization:
   total_batch_size: 512
@@ -26,8 +30,8 @@ optimization:
   max_grad_norm: 1.0
 
 logging:
-  output_dir: "checkpoints/sft"
-  log_dir: "logs/sft"
+  output_dir: "checkpoints/sft_ultrachat"
+  log_dir: "logs/sft_ultrachat"
   log_every_steps: 20
   eval_every_steps: 200
   save_every_steps: 500

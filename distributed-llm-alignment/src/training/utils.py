@@ -11,6 +11,9 @@ import numpy as np
 import torch
 import yaml
 from accelerate import Accelerator
+from accelerate.utils import DistributedDataParallelKwargs
+from accelerate import DeepSpeedPlugin
+
 
 
 def load_config(path: str | Path) -> Dict[str, Any]:
@@ -53,11 +56,18 @@ class RunningLoss:
 def get_accelerator(config: Dict[str, Any]) -> Accelerator:
     """Instantiate Accelerator using common keys from config."""
     hw = config.get("hardware", {})
+    deepspeed_cfg = hw.get("deepspeed_config")
+    ds_plugin: Optional[DeepSpeedPlugin] = None
+    if deepspeed_cfg:
+        ds_plugin = DeepSpeedPlugin(hf_ds_config=deepspeed_cfg)
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=False)
     return Accelerator(
         gradient_accumulation_steps=hw.get("gradient_accumulation_steps", 1),
         mixed_precision=hw.get("mixed_precision"),
         log_with="wandb" if config.get("logging", {}).get("use_wandb") else None,
         project_dir=config.get("logging", {}).get("log_dir"),
+        deepspeed_plugin=ds_plugin,
+        kwargs_handlers=[ddp_kwargs],
     )
 
 
@@ -91,6 +101,22 @@ def save_accelerator_state(accelerator: Accelerator, output_dir: str, tag: str) 
 def log_rank_zero(accelerator: Accelerator, message: str) -> None:
     if accelerator.is_main_process:
         print(message)
+
+
+def get_distributed_sampler(dataset, accelerator: Accelerator, shuffle: bool = True):
+    if accelerator.num_processes > 1:
+        return torch.utils.data.distributed.DistributedSampler(
+            dataset,
+            num_replicas=accelerator.num_processes,
+            rank=accelerator.process_index,
+            shuffle=shuffle,
+        )
+    return None
+
+
+def maybe_clip_gradients(accelerator: Accelerator, model: torch.nn.Module, max_norm: float | None) -> None:
+    if max_norm and max_norm > 0:
+        accelerator.clip_grad_norm_(model.parameters(), max_norm)
 
 
 def yield_batch(iterable: Iterable[Dict[str, Any]], accelerator: Accelerator) -> Iterable[Dict[str, Any]]:
