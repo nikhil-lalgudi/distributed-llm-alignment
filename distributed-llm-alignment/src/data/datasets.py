@@ -229,12 +229,6 @@ def pad_batch(batch: List[Dict[str, torch.Tensor]], pad_token_id: int) -> Dict[s
     return padded
 
 
-def _apply_template(template: Optional[str], record: Dict[str, Any]) -> str:
-    if not template:
-        return record
-    return template.format(**record)
-
-
 def load_instruction_records(cfg: Dict[str, Any], split: str = "train") -> List[Dict[str, Any]]:
     source = cfg.get("source", "local")
     limit = cfg.get("limit")

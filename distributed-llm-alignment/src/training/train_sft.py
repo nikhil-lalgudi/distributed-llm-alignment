@@ -121,6 +121,16 @@ def main() -> None:
         accelerator,
         f"Trainable parameters: {count_trainable_params(model)}",
     )
+    eff_batch = (
+        config["optimization"]["micro_batch_size"]
+        * accelerator.num_processes
+        * config.get("hardware", {}).get("gradient_accumulation_steps", 1)
+    )
+    target_batch = config["optimization"].get("total_batch_size", eff_batch)
+    log_rank_zero(
+        accelerator,
+        f"Effective global batch size: {eff_batch} (target {target_batch})",
+    )
 
     progress_bar = range(total_steps)
     running_loss = RunningLoss()

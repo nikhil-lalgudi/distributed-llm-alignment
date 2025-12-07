@@ -120,6 +120,17 @@ def main() -> None:
     running = RunningLoss()
     global_step = 0
 
+    eff_batch = (
+        config["optimization"]["micro_batch_size"]
+        * accelerator.num_processes
+        * config.get("hardware", {}).get("gradient_accumulation_steps", 1)
+    )
+    target_batch = config["optimization"].get("total_batch_size", eff_batch)
+    log_rank_zero(
+        accelerator,
+        f"Effective global batch size: {eff_batch} (target {target_batch})",
+    )
+
     max_grad_norm = config["optimization"].get("max_grad_norm", 1.0)
     for epoch in range(10_000):
         if train_sampler:
