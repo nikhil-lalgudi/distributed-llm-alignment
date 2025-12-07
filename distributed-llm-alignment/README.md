@@ -150,6 +150,7 @@ Swap the `data:` or `sampling:` blocks in your configs with these presets to tra
 - Add ablations by composing additional Hydra/OMEGACONF config fragments (if desired).
 
 ## References
-- DPO: Rafailov et al. 2023
-- RLHF: Ouyang et al. 2022
-- On-policy distillation: Hinton et al. 2015, OpenAI alignment blogs
+- DPO: Rafailov, R., Sharma, A., Mitchell, E., Ermon, S., Manning, C. D., & Finn, C. (2023). Direct Preference Optimization: Your Language Model is Secretly a Reward Model. In Advances in Neural Information Processing Systems (NeurIPS 2023). arXiv:2305.18290.
+- RLHF: Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright, C., Mishkin, P., … & Christiano, P. (2022). Training language models to follow instructions with human feedback. In Advances in Neural Information Processing Systems (NeurIPS 2022). arXiv:2203.02155.
+- On-policy distillation: Hinton, G., Vinyals, O., & Dean, J. (2015). Distilling the Knowledge in a Neural Network. arXiv:1503.02531.
+- Agarwal, R., Vieillard, N., & others (2024). On-Policy Distillation of Language Models. In International Conference on Learning Representations (ICLR 2024). arXiv:2306.13649.
