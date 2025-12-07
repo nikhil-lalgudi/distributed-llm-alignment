@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import argparse
-from typing import Dict
+from typing import Dict, List
 
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from src.data.datasets import TeacherRolloutDataset
@@ -35,11 +36,29 @@ def main() -> None:
     accelerator = get_accelerator(config)
 
     model_cfg: Dict = config["model"]
+    distill_cfg: Dict = config.get("distill", {})
     student_bundle = load_causal_lm(
         model_cfg["student_model_name_or_path"],
         gradient_checkpointing=True,
         use_flash_attention=model_cfg.get("use_flash_attention", False),
     )
+    teacher_bundles: List = []
+    if distill_cfg.get("use_kl", False) and distill_cfg.get("on_policy", False):
+        teacher_paths = distill_cfg.get("teacher_model_names_or_paths") or []
+        if not teacher_paths:
+            single = distill_cfg.get("teacher_model_name_or_path") or model_cfg.get("teacher_path")
+            if single:
+                teacher_paths = [single]
+        if not teacher_paths:
+            raise ValueError("KL distillation requested but no teacher model path provided")
+        for tpath in teacher_paths:
+            tb = load_causal_lm(
+                tpath,
+                gradient_checkpointing=False,
+                use_flash_attention=False,
+            )
+            tb.model.eval()
+            teacher_bundles.append(tb)
     dataset = TeacherRolloutDataset(
         config["data"]["teacher_samples_path"],
         student_bundle.tokenizer,
@@ -62,9 +81,18 @@ def main() -> None:
         weight_decay=config["optimization"].get("weight_decay", 0.0),
     )
 
-    student_bundle.model, optimizer, dataloader = accelerator.prepare(
-        student_bundle.model, optimizer, dataloader
-    )
+    if teacher_bundles:
+        models_to_prepare = [student_bundle.model] + [tb.model for tb in teacher_bundles] + [optimizer, dataloader]
+        prepared = accelerator.prepare(*models_to_prepare)
+        student_bundle.model = prepared[0]
+        for i, tb in enumerate(teacher_bundles):
+            tb.model = prepared[i + 1]
+        optimizer = prepared[-2]
+        dataloader = prepared[-1]
+    else:
+        student_bundle.model, optimizer, dataloader = accelerator.prepare(
+            student_bundle.model, optimizer, dataloader
+        )
 
     total_steps = config["optimization"]["max_train_steps"]
     log_every = config["logging"].get("log_every_steps", 20)
@@ -87,14 +115,36 @@ def main() -> None:
     )
 
     max_grad_norm = config["optimization"].get("max_grad_norm", 1.0)
+    use_kl = distill_cfg.get("use_kl", False)
+    on_policy = distill_cfg.get("on_policy", False)
+
     for epoch in range(10_000):
         if train_sampler:
             train_sampler.set_epoch(epoch)
         for batch in dataloader:
             reward_values = batch.pop("reward")
             with accelerator.accumulate(student_bundle.model):
-                outputs = student_bundle.model(**batch)
-                loss = outputs.loss
+                if use_kl and on_policy and teacher_bundles:
+                    labels = batch.pop("labels", None)
+                    attention_mask = batch.get("attention_mask")
+                    student_outputs = student_bundle.model(**batch)
+                    student_logits = student_outputs.logits
+                    student_log_probs = F.log_softmax(student_logits, dim=-1)
+                    with torch.no_grad():
+                        teacher_probs_list = []
+                        for tb in teacher_bundles:
+                            t_out = tb.model(**batch)
+                            t_logits = t_out.logits
+                            teacher_probs_list.append(F.softmax(t_logits, dim=-1))
+                        teacher_probs = torch.stack(teacher_probs_list, dim=0).mean(dim=0)
+                    kl_per_token = F.kl_div(student_log_probs, teacher_probs, reduction="none").sum(-1)
+                    if attention_mask is not None:
+                        loss = (kl_per_token * attention_mask).sum() / attention_mask.sum()
+                    else:
+                        loss = kl_per_token.mean()
+                else:
+                    outputs = student_bundle.model(**batch)
+                    loss = outputs.loss
                 accelerator.backward(loss)
                 maybe_clip_gradients(accelerator, student_bundle.model, max_grad_norm)
                 optimizer.step()

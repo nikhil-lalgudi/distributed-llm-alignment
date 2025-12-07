@@ -65,6 +65,7 @@ bash scripts/launch_rlhf.sh config/rlhf_config.yaml
 # Phase 4: Teacher Rollouts + Distillation
 python -m src.training.generate_teacher_data --teacher checkpoints/dpo/latest --prompts data/processed/sft_eval.jsonl --output data/processed/teacher_rollouts.jsonl
 bash scripts/launch_distill.sh config/distill_config.yaml
+# (multi-teacher / KL on-policy) bash scripts/launch_distill_multi.sh config/distill_config.yaml
 
 # Phase 5: Evaluation
 bash scripts/launch_eval.sh config/eval_config.yaml
@@ -129,6 +130,10 @@ Apply by merging keys into your base config (or via Hydra-style overlays if you 
 - Preference: `config/data_sources/pref_hh_rlhf.yaml`, `config/data_sources/pref_shp.yaml`.
 - RLHF prompts: `config/data_sources/rlhf_prompts_hh.yaml`.
 Swap the `data:` or `sampling:` blocks in your configs with these presets to train on real HF datasets without manual preprocessing.
+
+## Distillation Modes
+- **Cross-entropy (default)**: `distill.use_kl: false` uses teacher responses as labels.
+- **On-policy KL (teacher ensemble optional)**: set `distill.use_kl: true`, `distill.on_policy: true`, and specify one or more teachers via `teacher_model_name_or_path` or `teacher_model_names_or_paths` (probs are averaged). Use `scripts/launch_distill_multi.sh` to run with these settings.
 
 ## Data Expectations
 - **Instruction SFT**: JSONL entries with `{"prompt": str, "response": str}`.

@@ -13,6 +13,12 @@ model:
     alpha: 32
     dropout: 0.05
 
+distill:
+  use_kl: false              # set true to enable KL distillation
+  on_policy: false           # when true, run KL vs teacher(s); when false, use CE on labels
+  teacher_model_name_or_path: "checkpoints/dpo/latest"
+  teacher_model_names_or_paths: []   # optional list for teacher ensemble averaging
+
 data:
   teacher_samples_path: "data/processed/teacher_rollouts.jsonl"
   num_workers: 4
